@@ -1,0 +1,8 @@
+'(:name "Shenanigans"
+  :items
+  ("First"
+   :cwd "~/dev/scratch"
+   :cmd "ls -la")
+  ("Second"
+   :cwd "~/dev/scratch"
+   :cmd "tail -f ./test.txt"))
