@@ -33,18 +33,22 @@
    (items :initarg :items
           :initform ())))
 
+(defclass antics--item ()
+  ((name :initarg :name
+         :initform "Unknown Item")))
 
 (let ((config (cadr (antics--read-config "example.antics"))))
-  (while config
-    (message "processing %s" (car config))
-    (let ((item (car config)))
-      (cond
-       ((listp item)
-        (message "found items! %s" (length item)))
-       ((symbolp item)
-        (message "found name! %s" item))
-       (t (message "something else %s" item))))
-    (pop config)))
+  (let (name items)
+    (while config
+      (let ((current (pop config)))
+        (when (symbolp current)
+          (cond ((eq current :name)
+                 (setq name (pop config)))
+                ((eq current :items)
+                 (while (and config (listp (car config)))
+                   (push (pop config) items)))
+                (t (message "unknown symbol %s" current))))))
+    (antics--configuration :name name :items items)))
 
 (define-derived-mode antics-mode tabulated-list-mode "antics"
   "Antics mode"
