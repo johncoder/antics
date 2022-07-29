@@ -37,18 +37,22 @@
   ((name :initarg :name
          :initform "Unknown Item")))
 
-(let ((config (cadr (antics--read-config "example.antics"))))
-  (let (name items)
+(defun antics--parse-config (config)
+  "Parse s-expressions in CONFIG."
+  (let (name items current)
     (while config
-      (let ((current (pop config)))
-        (when (symbolp current)
-          (cond ((eq current :name)
-                 (setq name (pop config)))
-                ((eq current :items)
-                 (while (and config (listp (car config)))
-                   (push (pop config) items)))
-                (t (message "unknown symbol %s" current))))))
+      (setq current (pop config))
+      (when (symbolp current)
+        (cond ((eq current :name)
+               (setq name (pop config)))
+              ((eq current :items)
+               (while (and config (listp (car config)))
+                 (push (pop config) items)))
+              (t (message "unknown symbol %s" current)))))
     (antics--configuration :name name :items items)))
+
+(let ((config (cadr (antics--read-config "example.antics"))))
+  (antics--parse-config config))
 
 (define-derived-mode antics-mode tabulated-list-mode "antics"
   "Antics mode"
