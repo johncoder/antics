@@ -1,8 +1,12 @@
-'(:name "Shenanigans"
+; -*- mode: Lisp;-*-
+'(:name "Shenanigans!"
   :items
-  ("First"
+  ("Firstly"
    :cwd "~/dev/scratch"
    :cmd "ls -la")
-  ("Second"
+  ("Second item"
    :cwd "~/dev/scratch"
-   :cmd "tail -f ./test.txt"))
+   :cmd "tail -f ./test.txt")
+  ("Thirdsy"
+   :cwd "here"
+   :cmd "hello"))
