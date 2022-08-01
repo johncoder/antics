@@ -21,7 +21,13 @@
 (require 'cl-lib)
 (require 'eieio)
 
-(defvar antics-filename "example.antics"
+(defvar antics--current-config nil
+  "The current configuration loaded for antics.")
+
+(defconst antics-default-filename "example.antics"
+  "The default filename to be loaded by antics.")
+
+(defvar antics-filename antics-default-filename
   "The file to be loaded by antics.")
 
 (defun antics--read-config (antics-file-path)
@@ -43,12 +49,31 @@
         :initform "./")
    (cmd :initarg :cmd
         :initform '(error "Property CMD is required for antics items"))
-   (proc :initform nil)))
+   ;; TODO: ensure that this does not leak processes!
+   (proc :initform nil)
+   (proc-status :initform "<none>")))
 
 (cl-defmethod procname ((obj antics--item))
   "Process name for ANTICS--ITEM instance OBJ."
   (with-slots (name) obj
     (format "antics: %s" name)))
+
+(cl-defmethod update-proc-status ((obj antics--item) status)
+  "Update STATUS process for ANTICS--ITEM instance OBJ."
+  (with-slots (proc-status) obj
+    (setq proc-status status)))
+
+(defun ordinary-insertion-filter (proc string)
+  "Orindary filter for inserting STRING to PROC buffer."
+  (when (buffer-live-p (process-buffer proc))
+    (with-current-buffer (process-buffer proc)
+      (let ((moving (= (point) (process-mark proc))))
+        (save-excursion
+          ;; Insert the text, advancing the process marker.
+          (goto-char (process-mark proc))
+          (insert string)
+          (set-marker (process-mark proc) (point)))
+        (if moving (goto-char (process-mark proc)))))))
 
 (cl-defmethod start ((obj antics--item))
   "Start a process for ANTICS--ITEM instance OBJ."
@@ -57,8 +82,11 @@
       (setq proc (make-process :name (procname obj)
                                :buffer (procname obj)
                                :command (list "bash")
-                               :connection-type 'pipe))
+                               :connection-type 'pipe
+                               :filter 'ordinary-insertion-filter
+                               :sentinel 'update-proc-status))
       (process-send-string proc cmd)
+      (process-send-eof proc)
       (message "starting process for %s" name))))
 
 (defun antics--parse-item (lst)
@@ -91,9 +119,10 @@
 
 (defun antics--mode-cols ()
   "Columns for antics-mode."
-  (vector (list "Name" (/ 100 3))
-          (list "CWD" (/ 100 3))
-          (list "Command" (/ 100 3))))
+  (vector (list "Name" (/ 100 4))
+          (list "CWD" (/ 100 4))
+          (list "Command" (/ 100 4))
+          (list "Process" (/ 100 4))))
 
 (defun antics--mode-rows (config)
   "Rows for anticss-mode in CONFIG slot ITEMS."
@@ -103,31 +132,62 @@
            (vector
             (slot-value item 'name)
             (slot-value item 'cwd)
-            (slot-value item 'cmd))))
+            (slot-value item 'cmd)
+            (let ((proc (slot-value item 'proc)))
+              (cond (())
+                    (t "None")))
+            (if (slot-value item 'proc)
+                "Y"
+              "N"))))
    (slot-value config 'items)))
 
 (defun antics-select-item ()
   "View an ITEM."
   (interactive)
-  (start (tabulated-list-get-id))
-  (switch-to-buffer (procname (tabulated-list-get-id))))
+  (let ((item (tabulated-list-get-id)))
+    (unless (slot-value item 'proc)
+      (start (tabulated-list-get-id)))
+    (switch-to-buffer (procname item))))
+
+(defun antics--load (filepath &optional force)
+  "Load an antics configuration file at FILEPATH, FORCE."
+  (when (or (not antics--current-config)
+              force)
+    (setq antics--current-config
+          (antics--parse-config (antics--read-config filepath)))))
+
+(defun antics-load-config ()
+  "Load configuration; use universal args to force load."
+  (interactive)
+  (let ((force current-prefix-arg))
+    (antics--load antics-filename force)))
 
 (defun antics-refresh ()
   "Refresh antics content."
   (interactive)
-  (let* ((config-file-contents (antics--read-config antics-filename))
-         (config (antics--parse-config config-file-contents))
-         (columns (antics--mode-cols))
-         (rows (reverse (antics--mode-rows config))))
+  (antics--load antics-filename)
+  (let ((columns (antics--mode-cols))
+        (rows (reverse (antics--mode-rows antics--current-config))))
     (setq tabulated-list-format columns)
     (setq tabulated-list-entries rows)
     (tabulated-list-init-header)
     (tabulated-list-print t t)))
 
+(defun antics-kill ()
+  "Kill antics process."
+  (interactive)
+  (let* ((item (tabulated-list-get-id))
+         (proc (slot-value item 'proc)))
+    (when proc
+      (kill-process proc)))
+  (antics-refresh))
+
 (defvar antics-mode-map
   (let ((keymap (make-sparse-keymap)))
     (define-key keymap (kbd "RET") 'antics-select-item)
     (define-key keymap (kbd "g") 'antics-refresh)
+    (define-key keymap (kbd "R") 'antics-load-config)
+    (define-key keymap (kbd "k") 'antics-kill)
     keymap)
   "Key map for antics-mode.")
 
@@ -140,14 +200,6 @@
   (interactive)
   (switch-to-buffer "*antics*")
   (antics-mode))
-
-;; (let ((config (antics--read-config antics-filename)))
-;;   (antics--parse-config config))
-
-;; (let ((example (antics--parse-config (antics--read-config antics-filename))))
-;;   ;; (pp (antics--mode-rows example))
-;;   (with-slots (items) example
-;;     (pp items)))
 
 (provide 'antics)
 ;;; antics.el ends here
