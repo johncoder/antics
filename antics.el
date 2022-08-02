@@ -158,7 +158,7 @@
 (defun antics--load (filepath &optional force)
   "Load an antics configuration file at FILEPATH, FORCE."
   (when (or (not antics--current-config)
-              force)
+            force)
     (setq antics--current-config
           (antics--parse-config (antics--read-config filepath)))))
 
@@ -227,17 +227,17 @@
   "Key map for antics-mode.")
 
 (let ((keymap (make-sparse-keymap)))
-    (define-key keymap (kbd "RET") 'antics-select-item)
-    (define-key keymap (kbd "g") 'antics-refresh)
-    (define-key keymap (kbd "R") 'antics-load-config)
-    (define-key keymap (kbd "k") 'antics-kill)
-    (define-key keymap (kbd "s") 'antics-start)
-    (define-key keymap (kbd "v") 'antics-view)
-    (define-key keymap (kbd "d") 'antics-delete)
-    (define-key keymap (kbd "P") #'(lambda () (interactive)
-                                     (list-processes)
-                                     (switch-to-buffer "*Process List*")))
-    (setq antics-mode-map keymap))
+  (define-key keymap (kbd "RET") 'antics-select-item)
+  (define-key keymap (kbd "g") 'antics-refresh)
+  (define-key keymap (kbd "R") 'antics-load-config)
+  (define-key keymap (kbd "k") 'antics-kill)
+  (define-key keymap (kbd "s") 'antics-start)
+  (define-key keymap (kbd "v") 'antics-view)
+  (define-key keymap (kbd "d") 'antics-delete)
+  (define-key keymap (kbd "P") #'(lambda () (interactive)
+                                   (list-processes)
+                                   (switch-to-buffer "*Process List*")))
+  (setq antics-mode-map keymap))
 
 (define-derived-mode antics-mode tabulated-list-mode "antics"
   "Antics mode"
