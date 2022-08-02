@@ -142,14 +142,18 @@
   (let ((item (tabulated-list-get-id)))
     (unless (slot-value item 'proc)
       (start (tabulated-list-get-id)))
-    (switch-to-buffer (procname item))))
+    (switch-to-buffer (procname item))
+    (antics-view-mode)
+    (setq-local antics-item item)))
 
 (defun antics-view ()
   "View an item."
   (interactive)
   (let ((item (tabulated-list-get-id)))
     (when (slot-value item 'proc)
-      (switch-to-buffer (procname item)))))
+      (switch-to-buffer (procname item))
+      (antics-view-mode)
+      (setq-local antics-item item))))
 
 (defun antics--load (filepath &optional force)
   "Load an antics configuration file at FILEPATH, FORCE."
@@ -244,6 +248,23 @@
   (interactive)
   (switch-to-buffer "*antics*")
   (antics-mode))
+
+(defvar antics-view-mode-map nil
+  "Key map for antics-view-mode.")
+
+(let ((keymap (make-sparse-keymap)))
+  (set-keymap-parent keymap special-mode-map)
+  (define-key keymap (kbd "q") 'quit-window)
+  (define-key keymap (kbd "g") #'(lambda () (interactive)
+                                   ;; TODO: extract the existing functionality for reuse here
+                                   (message "%s" antics-item)))
+  (setq antics-view-mode-map keymap))
+
+(define-minor-mode antics-view-mode
+  "A minor mode for antics buffers."
+  :keymap antics-view-mode-map
+  :lighter "antics"
+  (setq-local window-point-insertion-type t))
 
 (provide 'antics)
 ;;; antics.el ends here
