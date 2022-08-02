@@ -119,29 +119,21 @@
 
 (defun antics--mode-cols ()
   "Columns for antics-mode."
-  (vector (list "Name" (/ 100 5))
-          (list "CWD" (/ 100 5))
-          (list "Command" (/ 100 5))
-          (list "Process" (/ 100 5))
-          (list "pid" (/ 100 5))))
+  (vector (list "Name" (/ 85 3))
+          (list "pid" 5)
+          (list "Process" 10)
+          (list "Command" (/ 85 3))
+          (list "CWD" (/ 85 3))))
 
 (defun antics--mode-rows (config)
   "Rows for anticss-mode in CONFIG slot ITEMS."
   (mapcar
    (lambda (item)
-     (list item
-           (vector
-            (slot-value item 'name)
-            (slot-value item 'cwd)
-            (slot-value item 'cmd)
-            (let ((proc (slot-value item 'proc))
-                  (proc-status (slot-value item 'proc-status)))
-              (cond
-               (nil (symbol-name (process-status (procname item))))
-               ((and proc proc-status) proc-status)
-               (t "-")))
-            (let ((proc (slot-value item 'proc)))
-              (if proc (format "%s" (process-id proc)) "-")))))
+     (with-slots (name proc cmd cwd proc-status) item
+       (let ((pid (if proc (format "%s" (process-id proc)) "-"))
+             (status (if (and proc proc-status) proc-status "-")))
+         ;; this is the actual row data
+         (list item (vector name pid status cmd cwd)))))
    (slot-value config 'items)))
 
 (defun antics-select-item ()
@@ -181,8 +173,9 @@
     (progn
       (when proc
         (ignore-errors
-          (kill-process proc))
+          (delete-process proc))
         (setf (slot-value item 'proc) nil)
+        (setf (slot-value item 'proc-status) "started")
         (ignore-errors
           (kill-buffer buffer-name)))))
   (antics-refresh))
@@ -205,7 +198,7 @@
          (proc (slot-value item 'proc)))
     (if proc
         (progn
-          (kill-process proc)
+          (delete-process proc)
           (kill-buffer (procname item)))
       (message "antics: no process for %s" (slot-value item 'name))))
   (antics-refresh))
@@ -219,8 +212,10 @@
     (progn
       (when proc
         (ignore-errors
-          (kill-process proc)
-          (setf proc nil)
+          (delete-process proc))
+        (setf (slot-value item 'proc) nil)
+        (setf (slot-value item 'proc-status) "started")
+        (ignore-errors
           (kill-buffer buffer-name)))
       (start item))))
 
