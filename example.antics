@@ -3,7 +3,7 @@
   :items
   ("Firstly"
    :cwd "~/dev/scratch"
-   :cmd "ls -la")
+   :cmd "ls -la && date")
   ("Second item"
    :cwd "~/dev/scratch"
    :cmd "tail -f ./test.txt")

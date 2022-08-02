@@ -51,7 +51,7 @@
         :initform '(error "Property CMD is required for antics items"))
    ;; TODO: ensure that this does not leak processes!
    (proc :initform nil)
-   (proc-status :initform "<none>")))
+   (proc-status :initform "started")))
 
 (cl-defmethod procname ((obj antics--item))
   "Process name for ANTICS--ITEM instance OBJ."
@@ -61,7 +61,7 @@
 (cl-defmethod update-proc-status ((obj antics--item) status)
   "Update STATUS process for ANTICS--ITEM instance OBJ."
   (with-slots (proc-status) obj
-    (setq proc-status status)))
+    (setq proc-status (string-trim status))))
 
 (defun ordinary-insertion-filter (proc string)
   "Orindary filter for inserting STRING to PROC buffer."
@@ -84,7 +84,7 @@
                                :command (list "bash")
                                :connection-type 'pipe
                                :filter 'ordinary-insertion-filter
-                               :sentinel 'update-proc-status))
+                               :sentinel #'(lambda (_ status) (update-proc-status obj status))))
       (process-send-string proc cmd)
       (process-send-eof proc)
       (message "starting process for %s" name))))
@@ -119,10 +119,11 @@
 
 (defun antics--mode-cols ()
   "Columns for antics-mode."
-  (vector (list "Name" (/ 100 4))
-          (list "CWD" (/ 100 4))
-          (list "Command" (/ 100 4))
-          (list "Process" (/ 100 4))))
+  (vector (list "Name" (/ 100 5))
+          (list "CWD" (/ 100 5))
+          (list "Command" (/ 100 5))
+          (list "Process" (/ 100 5))
+          (list "pid" (/ 100 5))))
 
 (defun antics--mode-rows (config)
   "Rows for anticss-mode in CONFIG slot ITEMS."
@@ -133,12 +134,14 @@
             (slot-value item 'name)
             (slot-value item 'cwd)
             (slot-value item 'cmd)
+            (let ((proc (slot-value item 'proc))
+                  (proc-status (slot-value item 'proc-status)))
+              (cond
+               (nil (symbol-name (process-status (procname item))))
+               ((and proc proc-status) proc-status)
+               (t "-")))
             (let ((proc (slot-value item 'proc)))
-              (cond (())
-                    (t "None")))
-            (if (slot-value item 'proc)
-                "Y"
-              "N"))))
+              (if proc (format "%s" (process-id proc)) "-")))))
    (slot-value config 'items)))
 
 (defun antics-select-item ()
@@ -148,6 +151,13 @@
     (unless (slot-value item 'proc)
       (start (tabulated-list-get-id)))
     (switch-to-buffer (procname item))))
+
+(defun antics-view ()
+  "View an item."
+  (interactive)
+  (let ((item (tabulated-list-get-id)))
+    (when (slot-value item 'proc)
+      (switch-to-buffer (procname item)))))
 
 (defun antics--load (filepath &optional force)
   "Load an antics configuration file at FILEPATH, FORCE."
@@ -161,6 +171,21 @@
   (interactive)
   (let ((force current-prefix-arg))
     (antics--load antics-filename force)))
+
+(defun antics-delete ()
+  "Delete antics process."
+  (interactive)
+  (let* ((item (tabulated-list-get-id))
+         (proc (slot-value item 'proc))
+         (buffer-name (procname item)))
+    (progn
+      (when proc
+        (ignore-errors
+          (kill-process proc))
+        (setf (slot-value item 'proc) nil)
+        (ignore-errors
+          (kill-buffer buffer-name)))))
+  (antics-refresh))
 
 (defun antics-refresh ()
   "Refresh antics content."
@@ -178,18 +203,42 @@
   (interactive)
   (let* ((item (tabulated-list-get-id))
          (proc (slot-value item 'proc)))
-    (when proc
-      (kill-process proc)))
+    (if proc
+        (progn
+          (kill-process proc)
+          (kill-buffer (procname item)))
+      (message "antics: no process for %s" (slot-value item 'name))))
   (antics-refresh))
 
-(defvar antics-mode-map
-  (let ((keymap (make-sparse-keymap)))
+(defun antics-start ()
+  "Start antics process."
+  (interactive)
+  (let* ((item (tabulated-list-get-id))
+         (proc (slot-value item 'proc))
+         (buffer-name (procname item)))
+    (progn
+      (when proc
+        (ignore-errors
+          (kill-process proc)
+          (setf proc nil)
+          (kill-buffer buffer-name)))
+      (start item))))
+
+(defvar antics-mode-map nil
+  "Key map for antics-mode.")
+
+(let ((keymap (make-sparse-keymap)))
     (define-key keymap (kbd "RET") 'antics-select-item)
     (define-key keymap (kbd "g") 'antics-refresh)
     (define-key keymap (kbd "R") 'antics-load-config)
     (define-key keymap (kbd "k") 'antics-kill)
-    keymap)
-  "Key map for antics-mode.")
+    (define-key keymap (kbd "s") 'antics-start)
+    (define-key keymap (kbd "v") 'antics-view)
+    (define-key keymap (kbd "d") 'antics-delete)
+    (define-key keymap (kbd "P") #'(lambda () (interactive)
+                                     (list-processes)
+                                     (switch-to-buffer "*Process List*")))
+    (setq antics-mode-map keymap))
 
 (define-derived-mode antics-mode tabulated-list-mode "antics"
   "Antics mode"
