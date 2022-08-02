@@ -8,5 +8,5 @@
    :cwd "~/dev/scratch"
    :cmd "tail -f ./test.txt")
   ("Thirdsy"
-   :cwd "here"
-   :cmd "hello"))
+   :cwd "./"
+   :cmd "make -k"))
