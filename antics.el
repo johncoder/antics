@@ -21,14 +21,17 @@
 (require 'cl-lib)
 (require 'eieio)
 
-(defvar antics--current-config nil
-  "The current configuration loaded for antics.")
-
 (defconst antics-default-filename "example.antics"
   "The default filename to be loaded by antics.")
 
+(defvar antics--current-config nil
+  "The current configuration loaded for antics.")
+
 (defvar antics-filename antics-default-filename
   "The file to be loaded by antics.")
+
+(defvar-local antics-item nil
+  "The antics item in a view buffer.")
 
 (defun antics--read-config (antics-file-path)
   "Read s-expression from ANTICS-FILE-PATH."
@@ -98,20 +101,23 @@
                 ((string-prefix-p "connection broken by remote peer\n" status) t)
                 (t nil))
       (with-current-buffer (process-buffer process)
-        (insert (format "\nProcess %s at %s\n" (string-trim status) (antics--current-time)))))))
+        (when (buffer-name (process-buffer process))
+          (insert (format "\nProcess %s at %s\n" (string-trim status) (antics--current-time))))))))
 
 (cl-defmethod start ((obj antics--item))
   "Start a process for ANTICS--ITEM instance OBJ."
-  (with-slots (proc name cwd cmd) obj
+  (with-slots (proc name cwd cmd proc-status) obj
     (unless proc
       (with-current-buffer (get-buffer-create (procname obj))
+        (erase-buffer)
         (insert (format "-*- mode: antics-view-mode; cwd: %s\nProcess started at: %s\n\n%s\n"
                         cwd
                         (antics--current-time)
                         cmd)))
+      (setq proc-status "started")
       (setq proc (make-process :name (procname obj)
                                :buffer (procname obj)
-                               :command (list "bash")
+                               :command (list shell-file-name)
                                :connection-type 'pipe
                                :filter 'ordinary-insertion-filter
                                :sentinel (antics--item-sentinel obj)))
@@ -210,7 +216,7 @@
         (ignore-errors
           (delete-process proc))
         (setf (slot-value item 'proc) nil)
-        (setf (slot-value item 'proc-status) "started")
+        (setf (slot-value item 'proc-status) "")
         (ignore-errors
           (kill-buffer buffer-name)))))
   (antics-refresh))
@@ -233,8 +239,7 @@
          (proc (slot-value item 'proc)))
     (if proc
         (progn
-          (delete-process proc)
-          (kill-buffer (procname item)))
+          (delete-process proc))
       (message "antics: no process for %s" (slot-value item 'name))))
   (antics-refresh))
 
@@ -244,15 +249,12 @@
   (let* ((item (tabulated-list-get-id))
          (proc (slot-value item 'proc))
          (buffer-name (procname item)))
-    (progn
-      (when proc
-        (ignore-errors
-          (delete-process proc))
-        (setf (slot-value item 'proc) nil)
-        (setf (slot-value item 'proc-status) "started")
-        (ignore-errors
-          (kill-buffer buffer-name)))
-      (start item))))
+    (when proc
+      (ignore-errors
+        (delete-process proc))
+      (setf (slot-value item 'proc) nil)
+      (setf (slot-value item 'proc-status) ""))
+    (start item)))
 
 (defvar antics-mode-map nil
   "Key map for antics-mode.")
@@ -280,15 +282,37 @@
   (switch-to-buffer "*antics*")
   (antics-mode))
 
+(defun antics--view-kill ()
+  (interactive)
+  (when antics-item
+    (with-slots (proc) antics-item
+      (when proc
+        (with-current-buffer (process-buffer proc)
+          (insert (format "\nProcess killed at %s" (antics--current-time))))
+        (ignore-errors
+          (kill-process proc))
+        (setf (slot-value antics-item 'proc) nil)))))
+
+(defun antics--view-rerun ()
+  (interactive)
+  (when antics-item
+    (with-slots (proc) antics-item
+      (when (and proc (y-or-n-p "Stop current process?"))
+        (with-current-buffer (process-buffer proc)
+          (insert (format "\nProcess killed at %s" (antics--current-time))))
+        (ignore-errors
+          (kill-process proc))
+        (setf (slot-value antics-item 'proc) nil)))
+    (start antics-item)))
+
 (defvar antics-view-mode-map nil
   "Key map for antics-view-mode.")
 
 (let ((keymap (make-sparse-keymap)))
   (set-keymap-parent keymap special-mode-map)
   (define-key keymap (kbd "q") 'quit-window)
-  (define-key keymap (kbd "g") #'(lambda () (interactive)
-                                   ;; TODO: extract the existing functionality for reuse here
-                                   (message "%s" antics-item)))
+  (define-key keymap (kbd "g") 'antics--view-rerun)
+  (define-key keymap (kbd "k") 'antics--view-kill)
   (setq antics-view-mode-map keymap))
 
 (define-minor-mode antics-view-mode
