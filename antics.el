@@ -75,16 +75,46 @@
           (set-marker (process-mark proc) (point)))
         (if moving (goto-char (process-mark proc)))))))
 
+(defun antics--current-time ()
+  "Get the current time."
+  (concat
+   (format-time-string "%Y-%m-%dT%T")
+   ((lambda (x) (concat (substring x 0 3) ":" (substring x 3 5)))
+    (format-time-string "%z"))))
+
+(defun antics--item-sentinel (item)
+  "Create a sentinel for ITEM."
+  (lambda (process status)
+    (update-proc-status item status)
+    (when (cond ((string-prefix-p "finished\n" status) t)
+                ((string-prefix-p "finished\n" status) t)
+                ((string-prefix-p "deleted\n" status) t)
+                ((string-prefix-p "exited abnormally with code " status) t)
+                ((string-prefix-p "failed with code fail-code\n" status) t)
+                ((string-prefix-p "signal-description " status) t)
+                ((string-prefix-p "open from host-name\n" status) t)
+                ((string-prefix-p "open\n" status) t)
+                ((string-prefix-p "run\n" status) t)
+                ((string-prefix-p "connection broken by remote peer\n" status) t)
+                (t nil))
+      (with-current-buffer (process-buffer process)
+        (insert (format "\nProcess %s at %s\n" (string-trim status) (antics--current-time)))))))
+
 (cl-defmethod start ((obj antics--item))
   "Start a process for ANTICS--ITEM instance OBJ."
   (with-slots (proc name cwd cmd) obj
     (unless proc
+      (with-current-buffer (get-buffer-create (procname obj))
+        (insert (format "-*- mode: antics-view-mode; cwd: %s\nProcess started at: %s\n\n%s\n"
+                        cwd
+                        (antics--current-time)
+                        cmd)))
       (setq proc (make-process :name (procname obj)
                                :buffer (procname obj)
                                :command (list "bash")
                                :connection-type 'pipe
                                :filter 'ordinary-insertion-filter
-                               :sentinel #'(lambda (_ status) (update-proc-status obj status))))
+                               :sentinel (antics--item-sentinel obj)))
       (process-send-string proc cmd)
       (process-send-eof proc)
       (message "starting process for %s" name))))
@@ -136,24 +166,25 @@
          (list item (vector name pid status cmd cwd)))))
    (slot-value config 'items)))
 
+(defun antics--view (item)
+  "Switch to view for antics ITEM."
+  (when (slot-value item 'proc)
+    (switch-to-buffer (procname item))
+    (antics-view-mode)
+    (setq-local antics-item item)))
+
 (defun antics-select-item ()
   "View an ITEM."
   (interactive)
   (let ((item (tabulated-list-get-id)))
     (unless (slot-value item 'proc)
       (start (tabulated-list-get-id)))
-    (switch-to-buffer (procname item))
-    (antics-view-mode)
-    (setq-local antics-item item)))
+    (antics--view item)))
 
 (defun antics-view ()
   "View an item."
   (interactive)
-  (let ((item (tabulated-list-get-id)))
-    (when (slot-value item 'proc)
-      (switch-to-buffer (procname item))
-      (antics-view-mode)
-      (setq-local antics-item item))))
+  (antics--view (tabulated-list-get-id)))
 
 (defun antics--load (filepath &optional force)
   "Load an antics configuration file at FILEPATH, FORCE."
