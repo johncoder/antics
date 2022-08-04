@@ -279,7 +279,7 @@
 (defun antics ()
   "Start antics, viewing a list of processes."
   (interactive)
-  (switch-to-buffer "*antics*")
+  (switch-to-buffer-other-window "*antics*")
   (antics-mode))
 
 (defun antics--view-kill ()
