@@ -24,7 +24,7 @@
 (defvar antics--current-config nil
   "The current configuration loaded for antics.")
 
-(defvar antics-filename ""
+(defvar antics-filename nil
   "The file to be loaded by antics.")
 
 (defvar-local antics-item nil
@@ -201,17 +201,14 @@
   "Load configuration; use universal args to force load."
   (interactive)
   (let ((force current-prefix-arg)
-        (prev-antics-filename antics-filename))
-    (setq antics-filename
-          (read-file-name "Configuration file: "
-                          default-directory
-                          antics-filename
-                          t
-                          ""
-                          (lambda (v) (string-suffix-p ".antics" v))))
-    (antics--load antics-filename
-                  (or force (not (string-equal antics-filename prev-antics-filename)))))
-  (antics-refresh))
+        (prev-antics-filename antics-filename)
+        (new-antics-filename (read-file-name "Configuration file: " default-directory nil t "")))
+    (unless (or (string-equal "" new-antics-filename)
+              (directory-name-p new-antics-filename))
+      (setq antics-filename new-antics-filename)
+      (antics--load antics-filename
+                    (or force (not (string-equal antics-filename prev-antics-filename))))
+      (antics-refresh))))
 
 (defun antics-delete ()
   "Delete antics process."
@@ -232,13 +229,14 @@
 (defun antics-refresh ()
   "Refresh antics content."
   (interactive)
-  (antics--load antics-filename)
-  (let ((columns (antics--mode-cols))
-        (rows (reverse (antics--mode-rows antics--current-config))))
-    (setq tabulated-list-format columns)
-    (setq tabulated-list-entries rows)
-    (tabulated-list-init-header)
-    (tabulated-list-print t t)))
+  (when (string-equal "*antics*" (buffer-name (current-buffer)))
+    (antics--load antics-filename)
+    (let ((columns (antics--mode-cols))
+          (rows (reverse (antics--mode-rows antics--current-config))))
+      (setq tabulated-list-format columns)
+      (setq tabulated-list-entries rows)
+      (tabulated-list-init-header)
+      (tabulated-list-print t t))))
 
 (defun antics-kill ()
   "Kill antics process."
@@ -281,15 +279,15 @@
 
 (define-derived-mode antics-mode tabulated-list-mode "antics"
   "Antics mode"
-  (if antics-filename
-      (antics-refresh)
-    (antics-load-config)))
+  (antics-refresh))
 
 (defun antics ()
   "Start antics, viewing a list of processes."
   (interactive)
-  (switch-to-buffer-other-window "*antics*")
-  (antics-mode))
+  (antics-load-config)
+  (when antics-filename
+    (switch-to-buffer-other-window "*antics*")
+    (antics-mode)))
 
 (defun antics--view-kill ()
   "Kill the antics item for this view."
