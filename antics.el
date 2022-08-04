@@ -21,13 +21,10 @@
 (require 'cl-lib)
 (require 'eieio)
 
-(defconst antics-default-filename "example.antics"
-  "The default filename to be loaded by antics.")
-
 (defvar antics--current-config nil
   "The current configuration loaded for antics.")
 
-(defvar antics-filename antics-default-filename
+(defvar antics-filename ""
   "The file to be loaded by antics.")
 
 (defvar-local antics-item nil
@@ -82,8 +79,8 @@
   "Get the current time."
   (concat
    (format-time-string "%Y-%m-%dT%T")
-   ((lambda (x) (concat (substring x 0 3) ":" (substring x 3 5)))
-    (format-time-string "%z"))))
+   (let ((x (format-time-string "%z")))
+     (concat (substring x 0 3) ":" (substring x 3 5)))))
 
 (defun antics--item-sentinel (item)
   "Create a sentinel for ITEM."
@@ -203,8 +200,18 @@
 (defun antics-load-config ()
   "Load configuration; use universal args to force load."
   (interactive)
-  (let ((force current-prefix-arg))
-    (antics--load antics-filename force)))
+  (let ((force current-prefix-arg)
+        (prev-antics-filename antics-filename))
+    (setq antics-filename
+          (read-file-name "Configuration file: "
+                          default-directory
+                          antics-filename
+                          t
+                          ""
+                          (lambda (v) (string-suffix-p ".antics" v))))
+    (antics--load antics-filename
+                  (or force (not (string-equal antics-filename prev-antics-filename)))))
+  (antics-refresh))
 
 (defun antics-delete ()
   "Delete antics process."
@@ -248,8 +255,7 @@
   "Start antics process."
   (interactive)
   (let* ((item (tabulated-list-get-id))
-         (proc (slot-value item 'proc))
-         (buffer-name (procname item)))
+         (proc (slot-value item 'proc)))
     (when proc
       (ignore-errors
         (delete-process proc))
@@ -275,7 +281,9 @@
 
 (define-derived-mode antics-mode tabulated-list-mode "antics"
   "Antics mode"
-  (antics-refresh))
+  (if antics-filename
+      (antics-refresh)
+    (antics-load-config)))
 
 (defun antics ()
   "Start antics, viewing a list of processes."
@@ -284,6 +292,7 @@
   (antics-mode))
 
 (defun antics--view-kill ()
+  "Kill the antics item for this view."
   (interactive)
   (when antics-item
     (with-slots (proc) antics-item
@@ -295,10 +304,11 @@
         (setf (slot-value antics-item 'proc) nil)))))
 
 (defun antics--view-rerun ()
+  "Rerun the antics item for this view."
   (interactive)
   (when antics-item
     (with-slots (proc) antics-item
-      (when (and proc (y-or-n-p "Stop current process?"))
+      (when (and proc (y-or-n-p "Stop current process? "))
         (with-current-buffer (process-buffer proc)
           (insert (format "\nProcess killed at %s" (antics--current-time))))
         (ignore-errors

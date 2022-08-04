@@ -1,0 +1,12 @@
+; -*- mode: Lisp;-*-
+'(:name "More Shenanigans!"
+  :items
+  ("More Firstly"
+   :cwd "~/dev/scratch"
+   :cmd "ls -la && date")
+  ("More Second item"
+   :cwd "~/dev/scratch"
+   :cmd "date && tail -f ./test.txt")
+  ("More Thirdsy"
+   :cwd "./"
+   :cmd "date && make -k"))
