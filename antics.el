@@ -113,17 +113,18 @@
         (insert (format "-*- mode: antics-view-mode; cwd: %s\nProcess started at: %s\n\n%s\n"
                         cwd
                         (antics--current-time)
-                        cmd)))
-      (setq proc-status "started")
-      (setq proc (make-process :name (procname obj)
-                               :buffer (procname obj)
-                               :command (list shell-file-name)
-                               :connection-type 'pipe
-                               :filter 'ordinary-insertion-filter
-                               :sentinel (antics--item-sentinel obj)))
-      (process-send-string proc cmd)
-      (process-send-eof proc)
-      (message "starting process for %s" name))))
+                        cmd))
+        (setq proc-status "started")
+        (setq-local default-directory (expand-file-name cwd))
+        (setq proc (make-process :name (procname obj)
+                                 :buffer (procname obj)
+                                 :command (list shell-file-name)
+                                 :connection-type 'pipe
+                                 :filter 'ordinary-insertion-filter
+                                 :sentinel (antics--item-sentinel obj)))
+        (process-send-string proc cmd)
+        (process-send-eof proc)
+        (message "starting process for %s" name)))))
 
 (defun antics--parse-item (lst)
   "Create an antics item from LST."
