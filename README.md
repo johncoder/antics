@@ -3,7 +3,7 @@
 <h1>Antics</h1>
 
 <p>An Emacs package for running processes in the background.</p>
-
+</div>
 <hr />
 
 ## Installation
