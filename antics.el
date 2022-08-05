@@ -284,7 +284,8 @@
 (defun antics ()
   "Start antics, viewing a list of processes."
   (interactive)
-  (antics-load-config)
+  (unless antics--current-config
+    (antics-load-config))
   (when antics-filename
     (switch-to-buffer-other-window "*antics*")
     (antics-mode)))
