@@ -49,7 +49,6 @@
         :initform "./")
    (cmd :initarg :cmd
         :initform '(error "Property CMD is required for antics items"))
-   ;; TODO: ensure that this does not leak processes!
    (proc :initform nil)
    (proc-status :initform "started")))
 
